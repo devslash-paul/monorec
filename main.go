@@ -1,10 +1,22 @@
 package main
 
-import "os/exec"
-import "os"
-import "fmt"
-import "bufio"
-import "io"
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"os/exec"
+)
+
+func waitFor(proc *exec.Cmd, ch chan *exec.Cmd) {
+	err := proc.Wait()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ch <- proc
+}
 
 func main() {
 	subProcess := exec.Command("cmd")
@@ -20,17 +32,17 @@ func main() {
 	subProcess.Stdout = os.Stdout
 	subProcess.Stderr = os.Stderr
 
-	if err = subProcess.Start(); err != nil {
-		fmt.Println("An error occurred: ", err)
-	}
-
 	reader := bufio.NewReader(os.Stdin)
+	subProcess.Start()
+	ch := make(chan *exec.Cmd)
+	go waitFor(subProcess, ch)
 
 	for {
 		text, _ := reader.ReadString('\n')
-		fmt.Println("You said >>> " + text)
 		io.WriteString(stdin, text)
-		if subProcess.ProcessState.Exited() {
+		v := subProcess.ProcessState
+
+		if v != nil && v.Exited() {
 			return
 		}
 	}
